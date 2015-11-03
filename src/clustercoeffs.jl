@@ -1,10 +1,10 @@
 """
 CLUSTERCOEFFS
 -------------
-compute undirected clustering coefficients for a graph. clustercoeffs(A) computes a 
-normalized, weighted clustering coefficients from a graph represented by a symmetric 
-adjacency matrix A. clustercoeffs(A,weighted,normalized), with weighted and normalized 
-boolean values indicating whether the computation has to be weighted and/or normalized.
+    compute undirected clustering coefficients for a graph. clustercoeffs(A) computes a 
+    normalized, weighted clustering coefficients from a graph represented by a symmetric 
+    adjacency matrix A. clustercoeffs(A,weighted,normalized), with weighted and normalized 
+    boolean values indicating whether the computation has to be weighted and/or normalized.
 
 Functions
 ---------
@@ -14,10 +14,10 @@ If weighted and normalized are not specified, they are understood as true
 
 Example
 -------
-```
+~~~
 A = load_matrix_network("clique-10")    
 cc = clustercoeffs(MatrixNetwork(A))    
-```
+~~~
 """
 
 function clustercoeffs(A::MatrixNetwork)
@@ -50,8 +50,8 @@ function clustercoeffs(A::MatrixNetwork,weighted::Bool,normalized::Bool)
     return clustercoeffs_phase2(donorm,rp,ci,ai,usew)
 end
 
-function clustercoeffs_phase2(donorm::Bool,rp::Vector{Int64},ci::Vector{Int64},
-                                          ai::Vector{Float64},usew::Bool)
+function clustercoeffs_phase2{T}(donorm::Bool,rp::Vector{Int64},ci::Vector{Int64},
+                                          ai::Vector{T},usew::Bool)
     n = length(rp) - 1
     cc = zeros(Float64,n)
     # ind = falses(n,1)

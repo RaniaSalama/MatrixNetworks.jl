@@ -1,20 +1,19 @@
 """
 DIRCLUSTERCOEFFS
 ----------------
-compute clustering coefficients for a directed graph.\n
-cc=dirclustercoeffs(A) returns the directed clustering coefficients
-(which generalize the clustering coefficients of an undirected graph, 
-and so calling this function on an undirected graph will produce the same
-answer as clustercoeffs, but less efficiently.)
-
-This function implements the algorithm from Fagiolo, Phys Rev. E. 76
-026107 (doi:10:1103/PhysRevE.76.026107).  
-
-(cc,cccyc,ccmid,ccin,ccout,nf) = dirclusteringcoeffs(A) returns different 
-components of the clustering coefficients corresponding to cycles,
-middles, in triangles, and out triangles.  See the manuscript for a 
-description of the various types of triangles counted in the above
-metrics.
+    compute clustering coefficients for a directed graph.
+    cc = dirclustercoeffs(A) returns the directed clustering coefficients
+    (which generalize the clustering coefficients of an undirected graph, 
+    and so calling this function on an undirected graph will produce the same
+    answer as clustercoeffs, but less efficiently.)
+    
+    This function implements the algorithm from Fagiolo, Phys Rev. E. 
+    76026107 (doi:10:1103/PhysRevE.76.026107).  
+    
+    (cc,cccyc,ccmid,ccin,ccout,nf) = dirclusteringcoeffs(A) returns different 
+    components of the clustering coefficients corresponding to cycles,
+    middles, in triangles, and out triangles.  See the manuscript for a 
+    description of the various types of triangles counted in the above metrics.
 
 Functions
 ---------
@@ -24,10 +23,12 @@ Functions
 
 Example
 -------
-(A,xy,labels) = load_matrix_network_metadata("celegans");\n
-(cc, cccyc, ccmid, ccin, ccout, nf) = dirclustercoeffs(A, true, true);\n
-(maxval, maxind) = findmax(cc);\n
+~~~
+(A,xy,labels) = load_matrix_network_metadata("celegans")
+(cc, cccyc, ccmid, ccin, ccout, nf) = dirclustercoeffs(A, true, true)
+(maxval, maxind) = findmax(cc)
 labels[maxind]
+~~~
 """
 
 ###########################
@@ -54,10 +55,10 @@ function dirclustercoeffs{T}(A::SparseMatrixCSC{T,Int64},weighted::Bool,normaliz
     
     if usew
         (rp,ci,ai) = sparse_to_csr(A)
-        (cp,ri,ati) = sparse_to_csr(A')
+        (col_ptr,ri,ati) = sparse_to_csr(A')
     else
         (rp,ci) = sparse_to_csr(A)
-        (cp,ri) = sparse_to_csr(A') 
+        (col_ptr,ri) = sparse_to_csr(A') 
     end
     
     if any(ai.<0)
@@ -101,7 +102,7 @@ function dirclustercoeffs{T}(A::SparseMatrixCSC{T,Int64},weighted::Bool,normaliz
         # 1.  
         # find triangles with out links as last step, so precompute the inlinks
         # back to node v
-        for cpi = cp[v]:cp[v+1]-1
+        for cpi = col_ptr[v]:col_ptr[v+1]-1
             w = ri[cpi]
             if usew
                 ew = ati[cpi]
@@ -146,7 +147,7 @@ function dirclustercoeffs{T}(A::SparseMatrixCSC{T,Int64},weighted::Bool,normaliz
             if usew
                 ew = ai[rpi]^(1/3)
             end
-            for cpi = cp[w]:cp[w+1]-1
+            for cpi = col_ptr[w]:col_ptr[w+1]-1
                 x=ri[cpi]
                 if x==w
                     continue
@@ -160,7 +161,7 @@ function dirclustercoeffs{T}(A::SparseMatrixCSC{T,Int64},weighted::Bool,normaliz
             end
         end
         # count in-link circuits (in->out->out)
-        for cpi = cp[v]:cp[v+1]-1
+        for cpi = col_ptr[v]:col_ptr[v+1]-1
             w = ri[cpi]
             if v == w
                 continue
@@ -182,7 +183,7 @@ function dirclustercoeffs{T}(A::SparseMatrixCSC{T,Int64},weighted::Bool,normaliz
             end
         end
         # reset and reinit the cache for outlinks
-        for cpi = cp[v]:cp[v+1]-1
+        for cpi = col_ptr[v]:col_ptr[v+1]-1
             w = ri[cpi]
             ind[w]=0
         end # reset indicator
