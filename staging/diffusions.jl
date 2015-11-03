@@ -8,7 +8,7 @@ x <- alpha*x + gamma*v
 """
 function _applyv{T}(x::Vector{T}, v, alpha::T, gamma::T)
     x *= alpha
-    y += gamma*v
+    x += gamma*v
 end
 
 function _applyv{T}(x::Vector{T}, v::T, alpha::T, gamma::T)
@@ -48,7 +48,7 @@ pagerank_power
     x - the solution vector 
     y - an extra vector of memory
     P - a duck typed matrix to apply the stochastic operator
-        the type P must support size(P), eltype(P), P*x 
+        the type P must support P*x 
     alpha - the value of alpha in PageRank
     v - a duck typed vector to apply the personalization
         the type v must support x += v where x is a Vector{T}
