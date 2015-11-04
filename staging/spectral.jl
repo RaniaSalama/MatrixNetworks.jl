@@ -3,10 +3,22 @@
 """
 Compute the Fiedler vector associated with the normalized Laplacian
 of the graph with adjacency matrix A
+
+Returns
+    (x,lam2) 
 """
-function fiedler_vector{V}(A::SparseMatrixCSC{V,Int})
+function fiedler_vector{V}(A::SparseMatrixCSC{V,Int};tol=1e-8)
     d = sum(A)
-    # NOT DONE
+    n = size(A)
+    [ai,aj,av] = findnz(A)
+    L = sparse(ai,aj,av./(sqrt(d[ai].*d[aj])),n,n)
+    L = L + speye(n)
+    d,V = eigs(L;nev=2,which=:SR,tol=tol)
+    lam2 = d[2]-1.
+    
+    x = V[:,2]
+    x = x./sqrt(d)
+    return (x,lam2)
 end
 
 """
