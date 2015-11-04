@@ -37,7 +37,6 @@ function _applyv{T}(x::Vector{T}, v::SparseMatrixCSC{T,Int},
 end
 
 
-
 """
 This function computes the strongly personalized PageRank 
 vector of a column sub-stochastic matrix P. 
@@ -53,11 +52,12 @@ pagerank_power
     v - a duck typed vector to apply the personalization
         the type v must support x += v where x is a Vector{T}
         examples of v include a scalar, a sparsevec, or a Vector{T}
-    tol - the solution tolerance
+    tol - the solution tolerance in the error norm. 
 """
 function pagerank_power!{T}(x::Vector{T}, y::Vector{T}, 
     P, alpha::T, v, tol::T, 
     maxiter::Int, iterfunc::Function)
+    ialpha = 1./(1.-alpha)
     xinit = x
     _applyv(x,v,0.,1.) # iteration number 0
     iterfunc(0,x)
@@ -72,7 +72,7 @@ function pagerank_power!{T}(x::Vector{T}, y::Vector{T},
         end
         x,y = y,x # swap
         iterfunc(iter,x)
-        if delta*(1-alpha) < tol
+        if delta*ialpha < tol
             break
         end
     end
@@ -106,11 +106,11 @@ function pagerank_neumann!{T}(x::Vector{T}, y::Vector{T},
     iterfunc(0, x)
     
     for iter=1:maxiter
-        y = P*x
+        A_mul_B!(y,P,x)
         delta = 0.
-        for i=1:length(y)
-            y[i] *= alpha
-            delta += abs(y[i] - x[i])
+        @simd for i=1:length(y)
+            @inbounds y[i] *= alpha
+            @inbounds delta += abs(y[i] - x[i])
         end
         x,y = y,x
         iterfunc(iter,x)

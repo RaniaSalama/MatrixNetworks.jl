@@ -55,3 +55,18 @@ end
 z = z/sum_kbn(z)
 @test norm(x-z,1) <= n*tol
 
+n = 100_000
+P = spones(sprand(n,n,25/n))
+
+function _normout(P)
+    n = size(P,1)
+    colsums = sum(P,1)
+    (pi,pj,pv) = findnz(P)
+    P = sparse(pi,pj,pv./colsums[pj],n,n)
+end
+@time P= _normout(P)
+x = zeros(n)
+y = zeros(n)
+v = 1./n
+tol = 1e-8
+@time x = pagerank_power!(x,y,P,0.85,v,tol,maxiter,iterfunc)
