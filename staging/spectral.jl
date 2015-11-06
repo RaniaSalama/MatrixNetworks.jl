@@ -4,28 +4,38 @@
 Compute the Fiedler vector associated with the normalized Laplacian
 of the graph with adjacency matrix A
 
+The return vector is signed so that the number of positive
+entries is at least the number of negative entries. This will
+always give a
+
 Returns
-    (x,lam2) 
+    (x,lam2)
 """
 function fiedler_vector{V}(A::SparseMatrixCSC{V,Int};tol=1e-8)
-    d = sum(A)
-    n = size(A)
-    [ai,aj,av] = findnz(A)
-    L = sparse(ai,aj,av./(sqrt(d[ai].*d[aj])),n,n)
-    L = L + speye(n)
-    d,V = eigs(L;nev=2,which=:SR,tol=tol)
+    d = sum(A,1)
+    n = size(A,1)
+    ai,aj,av = findnz(A)
+    L = sparse(ai,aj,-av./(sqrt(d[ai].*d[aj])),n,n)
+    L = L + 2*speye(n)
+    (lams,V) = eigs(L;nev=2,which=:SR,tol=tol)
     lam2 = d[2]-1.
-    
+
     x = V[:,2]
     x = x./sqrt(d)
+
+    # flip the sign if the number of pos. entries is less than the num of neg. entries
+    nneg = sum(x < 0.)
+    if n-nneg < nneg
+      x = -x;
+    end
+
     return (x,lam2)
 end
 
 """
-Compute a Fiedler PageRank vector 
+Compute a Fiedler PageRank vector
 """
-function fielder_pagerank{V}(A::SparseMatrixCSC{V,Int},seed::Dict{Int,V};
-    alpha=0.99)
+function fielder_pagerank{V}(A::SparseMatrixCSC{V,Int},seed::Dict{Int,V};alpha=0.99)
 
 end
 
@@ -33,26 +43,26 @@ type PageRankProblem
     A::SparseMatrixCSC{Float64,Int}
     alpha::Float64
     seed::Int64
-end    
-    
+end
+
 function ppr_push(P::PageRankProblem, eps::Float64)
     # extract the sparse data structure
     colptr = P.A.colptr
     rowval = rowvals(P.A)
     n = size(P.A,1)
-    
+
     # create the initial solution and residual
     x = Dict{Int,Float64}()
     r = Dict{Int,Float64}()
-    
+
     r[P.seed] = 1.
-    
+
     q = [P.seed]
-    
+
     pushcount = 0
     pushvol = 0
     maxpush = 1./(eps*(1.-P.alpha))
-    
+
     while length(q) > 0 && pushcount <= maxpush
         pushcount += 1
         u = shift!(q)
@@ -60,9 +70,9 @@ function ppr_push(P::PageRankProblem, eps::Float64)
         pushval = r[u] - 0.5*eps*du
         x[u] = get(x,u,0.0) + (1-P.alpha)*pushval
         r[u] = 0.5*eps*du
-        
+
         pushval = pushval*P.alpha/du
-        
+
         for nzi in colptr[u]:(colptr[u+1] - 1)
             pushvol += 1
             v = rowval[nzi]
@@ -76,6 +86,6 @@ function ppr_push(P::PageRankProblem, eps::Float64)
         end
         pushvol += Int64(du)
     end
-    
+
     return x, r, pushcount, pushvol
-end    
+end
