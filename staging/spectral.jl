@@ -12,19 +12,28 @@ Returns
     (x,lam2)
 """
 function fiedler_vector{V}(A::SparseMatrixCSC{V,Int};tol=1e-8)
-    d = sum(A,1)
+    d = vec(sum(A,1))
+    d = sqrt(d)
     n = size(A,1)
     ai,aj,av = findnz(A)
-    L = sparse(ai,aj,-av./(sqrt(d[ai].*d[aj])),n,n)
+    L = sparse(ai,aj,-av./((d[ai].*d[aj])),n,n) # applied sqrt above
     L = L + 2*speye(n)
-    (lams,V) = eigs(L;nev=2,which=:SR,tol=tol)
-    lam2 = d[2]-1.
+    (lams,X) = eigs(L;nev=2,which=:SR,tol=tol)
+    lam2 = lams[2]-1.
 
-    x = V[:,2]
-    x = x./sqrt(d)
+    x1err = norm(X[:,1]*sign(X[1,1]) - d/norm(d))
+    if x1err >= 10*tol
+        warn(@sprintf("""
+        the null-space vector associated with the normalized Laplacian
+        was computed inaccurately (diff=%.3e); the Fiedler vector is
+        probably wrong""",x1err))
+    end
+
+    x = vec(X[:,2])
+    x = x./d # applied sqrt above
 
     # flip the sign if the number of pos. entries is less than the num of neg. entries
-    nneg = sum(x < 0.)
+    nneg = sum(x .< 0.)
     if n-nneg < nneg
       x = -x;
     end
