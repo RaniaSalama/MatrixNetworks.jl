@@ -1,4 +1,88 @@
 
+"""
+Compute eigenvalues using direct calls to the ARPACK wrappers
+to get type-stability.
+"""
+function _symeigs_smallest_arpack{V}(
+            A::SparseMatrixCSC{V,Int},nev::Int,tol::V,v0::Vector{V})                        
+            
+    n::Int = Base.LinAlg.chksquare(A) # get the size
+        
+    # setup options 
+    mode = 1
+    sym = true
+    iscmplx = false
+    bmat = ByteString("I")
+    ncv = max(2*nev,20)
+    
+    whichstr = ByteString("SA")
+    maxiter = 300
+    ritzvec = true
+    sigma = 0.
+    
+    TOL = Array(V,1)
+    TOL[1] = tol
+    lworkl = ncv*(ncv + 8)
+    v = Array(V, n, ncv)
+    workd = Array(V, 3*n)
+    workl = Array(V, lworkl)
+    resid = Array(V, n)
+    
+    resid[:] = v0[:]
+    
+    info = zeros(Base.LinAlg.BlasInt, 1)
+    info[1] = 1
+    
+    iparam = zeros(Base.LinAlg.BlasInt, 11)
+    ipntr = zeros(Base.LinAlg.BlasInt, 11)
+    ido = zeros(Base.LinAlg.BlasInt, 1)
+    
+    iparam[1] = Base.LinAlg.BlasInt(1)
+    iparam[3] = Base.LinAlg.BlasInt(maxiter)
+    iparam[7] = Base.LinAlg.BlasInt(mode)
+    
+    zernm1 = 0:(n-1)
+    
+    while true
+        Base.LinAlg.ARPACK.saupd(
+            ido, bmat, n, whichstr, nev, TOL, resid, ncv, v, n,
+            iparam, ipntr, workd, workl, lworkl, info)
+            
+        load_idx = ipntr[1] + zernm1
+        store_idx = ipntr[2] + zernm1
+        
+        x = workd[load_idx]
+        
+        if ido[1] == 1
+            workd[store_idx] = A*x
+        elseif ido[1] == 99
+            break
+        else
+            error("unexpected ARPACK behavior")
+        end
+    end
+    
+    # calls to eupd
+    howmny = ByteString("A")
+    select = Array(Base.LinAlg.BlasInt, ncv)
+    
+    d = Array(V, nev)
+    sigmar = ones(V,1)*sigma
+    ldv = n
+    Base.LinAlg.ARPACK.seupd(ritzvec, howmny, select, d, v, ldv, sigmar, 
+        bmat, n, whichstr, nev, TOL, resid, ncv, v, ldv, 
+        iparam, ipntr, workd, workl, lworkl, info)
+    if info[1] != 0
+        error("unexpected ARPACK exception")
+    end
+    
+    p = sortperm(d)
+    
+    d = d[p]
+    vectors = v[1:n,p]
+    
+    return (d,vectors,iparam[5])
+end            
 
 """
 Compute the Fiedler vector associated with the normalized Laplacian
@@ -11,16 +95,26 @@ always give a
 Returns
     (x,lam2)
 """
-function fiedler_vector{V}(A::SparseMatrixCSC{V,Int};tol=1e-8)
+function fiedler_vector{V}(A::SparseMatrixCSC{V,Int};tol=1e-8,maxiter=300,dense=96)
     d = vec(sum(A,1))
     d = sqrt(d)
     n = size(A,1)
-    ai,aj,av = findnz(A)
-    L = sparse(ai,aj,-av./((d[ai].*d[aj])),n,n) # applied sqrt above
-    L = L + 2*speye(n)
-    (lams,X) = eigs(L;nev=2,which=:SR,tol=tol)
-    lam2 = lams[2]-1.
-
+    if n > dense
+        ai,aj,av = findnz(A)
+        L = sparse(ai,aj,-av./((d[ai].*d[aj])),n,n) # applied sqrt above
+        L = full(L) + 2*eye(n)
+        F = eigfact!(Symmetric(L))
+        lam2 = F.values[2]-1.
+        X = F.vectors
+    else
+        ai,aj,av = findnz(A)
+        L = sparse(ai,aj,-av./((d[ai].*d[aj])),n,n) # applied sqrt above
+        L = L + 2*speye(n)
+        ve = ones(n) # create a deterministic starting vector
+        #(lams,X,nconv) = eigs(L;nev=2,which=:SR,tol=tol,v0=ve)
+        (lams,X,nconv) = _symeigs_smallest_arpack(L,2,tol,ve)
+        lam2 = lams[2]-1.
+    end
     x1err = norm(X[:,1]*sign(X[1,1]) - d/norm(d))
     if x1err >= 10*tol
         warn(@sprintf("""

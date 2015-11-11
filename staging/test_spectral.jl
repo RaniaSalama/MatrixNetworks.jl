@@ -15,6 +15,7 @@ results = ppr_push(P, 1.e-7)
 @printf("x[0] = %.15f\n", results[1][1]) # Matlab gave 0.026124014066724
 
 dtol = 1.e-8 # default tolerance
+
 v,lam2 = fiedler_vector(A)
 @test abs(lam2 - 3.026826881103339417e-03) <= dtol # result from LAPACK graph_eigs
 @test abs(v[1] - 1.878339361656544346e-02) <= dtol # result from Matlab
@@ -22,10 +23,21 @@ v,lam2 = fiedler_vector(A)
 @test abs(sum(abs(v).^4)/(sum(abs(v).^2)^2) - 6.761596909820281540e-03) <= dtol
 
 n = 25
-A = sparse(1:n-1,2:n,1,n,n)
+A = sparse(1:n-1,2:n,1.,n,n)
 A = A + A'
 elam2 = 2*sin(pi/2*1/(n-1.))^2 # exact lam2
 v,lam2 = fiedler_vector(A)
 @show elam2
 @show lam2
 @test abs(lam2 - elam2) <= dtol
+
+
+n = 500
+A = sparse(1:n-1,2:n,1.,n,n)
+A = A + A'
+elam2 = 2*sin(pi/2*1/(n-1.))^2 # exact lam2
+v,lam2 = fiedler_vector(A)
+@show elam2
+@show lam2
+@test abs(lam2 - elam2) <= dtol
+
