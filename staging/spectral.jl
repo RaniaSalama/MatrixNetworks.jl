@@ -135,6 +135,99 @@ function fiedler_vector{V}(A::SparseMatrixCSC{V,Int};tol=1e-8,maxiter=300,dense=
     return (x,lam2)
 end
 
+type RankedArray{S}
+    data::S 
+end
+
+import Base: getindex, haskey
+
+haskey{S}(A::RankedArray{S}, x::Int) = x >= 1 && x <= length(A.data)
+getindex{S}(A::RankedArray{S}, i) = A.data[i]    
+
+immutable SweepcutProfile{V,F}
+    p::Vector{Int}
+    conductance::Vector{F}
+    cut::Vector{V}
+    volume::Vector{V}
+    
+    function SweepcutProfile(p::Vector{Int}) 
+        n = length(p)
+        new(p,Array(F,n-1),Array(V,n-1),Array(V,n-1))
+    end
+end
+
+"""
+A - the sparse matrix representing the symmetric graph
+p - the permutation vector
+r - the rank of an item in the permutation vector
+        p should be sorted in decreasing order so that
+        i < j means that x[p[i]] < x[p[j]]
+totalvol - the entire volume of the graph
+maxvol - the maximum volume to consider, e.g. stop the sweep after maxvol
+
+"""        
+function sweepcut{V,T}(A::SparseMatrixCSC{V,Int}, p::Vector{Int}, r, 
+    totalvol::V, maxvol::T)
+    
+    F = typeof(one(V)/one(V)) # find the conductance type
+    output = SweepcutProfile{V,F}(p)
+    
+    nlast = length(p)
+    
+    cut = zero(V)
+    vol = zero(V)
+    colptr = A.colptr
+    rowval = rowvals(A)
+    nzval = A.nzval
+
+    for (i,v) in enumerate(p)
+        deltain = zero(V) # V might be pos. only... so delay subtraction
+        deg = zero(V)
+        rankv = getindex(r,v)
+        for nzi in colptr[v]:(colptr[v+1] - 1)
+            nbr = rowval[nzi] 
+            deg += nzval[nzi]
+            if haskey(r,nbr) # our neighbor is ranked
+                if getindex(r,nbr) <= rankv # nbr is ranked lower, decrease cut
+                    deltain += v == nbr ? nzval[nzi] : 2*nzval[nzi]
+                end
+            end
+        end
+        cut += deg
+        cut -= deltain
+        vol += deg
+        
+        # don't assign final values because they are unhelpful
+        if i==nlast
+            break
+        end
+        
+        cond = cut/min(vol,totalvol-vol)
+        output.conductance[i] = cond
+        output.cut[i] = cut
+        output.volume[i] = vol
+    end
+    @assert abs(cut) < 1e-12*totalvol
+    return output
+end    
+
+function sweepcut{V,T}(A::SparseMatrixCSC{V,Int}, x::Vector{T}, vol::V) 
+    p = sortperm(x,rev=true)
+    ranks = Array(Int, length(x))
+    for (i,v) in enumerate(p)
+        ranks[v] = i
+    end
+    r = RankedArray(ranks)
+    return sweepcut(A, p, r, vol, Inf)
+end    
+
+sweepcut{V,T}(A::SparseMatrixCSC{V,Int}, x::Vector{T}) = 
+    sweepcut(A, x, sum(A))
+
+#sweepcut{V,F}(A::SparseMatrixCSC{V,Int}, x::SparseMatrixCSC{F,Int}) = sweepcut(A, x, sum(A)) 
+
+
+ 
 """
 Compute a Fiedler PageRank vector
 """
